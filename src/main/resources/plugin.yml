@@ -1,0 +1,10 @@
+name: StatSave
+version: '${project.version}'
+main: com.towsifkafi.statsave.StatSave
+api-version: '1.20'
+folia-supported: true
+libraries:
+ - org.mongodb:mongodb-driver-sync:5.1.0
+commands:
+  statsave:
+    permission: statsave.admin

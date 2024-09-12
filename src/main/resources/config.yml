@@ -1,0 +1,53 @@
+# This is the configuration file for the plugin
+
+# Debug 
+# If you want to see debug messages, set this to true
+debug: true
+
+# Method to save data. Set to 'MySQL' or 'MongoDB'
+storage-method: MySQL
+
+# MySQL Configuration
+mysql:
+  driver: com.mysql.cj.jdbc.MysqlDataSource
+  # driver: com.mysql.jdbc.jdbc2.optional.MysqlDataSource
+  host: 127.0.0.1
+  port: 3306
+  database: database
+  username: user
+  password: pass
+
+# MongoDB Configuration
+mongodb:
+  connectionURI: mongodb://localhost:27017
+  database: statsave
+  collection: player_data
+
+# Configuration for saving data. Set to false to disable saving.
+save-data:
+  inventory: true
+  enderchest: true
+  armor: true
+  achievements: true
+  xp: true
+  stats: true
+  player_state: true
+  player_effects: true
+
+# More data options. Set to false to disable. Useful if you have a large amount of players and strip unwanted data.
+# 'strip-recipes' will strip the recipes advancements
+# 'only-completed' will only add advancements that the player has completed
+achievements-options:
+  strip-recipes: true
+  only-completed: true
+
+# 'strip-zero-values' will strip any stats that have a value of 0
+stats:
+  strip-zero-values: true
+
+
+# Only if you want to reset the tables
+# It will just delete them. They will be created if they don't exist anyway
+# If you want to recreate the tables, set this to true. Make sure to set it to false again
+recreatetables: false
+
