@@ -38,6 +38,8 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                            <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+                            <finalName>${project.artifactId}-${project.version}</finalName>
                             <minimizeJar>true</minimizeJar>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <relocations>
