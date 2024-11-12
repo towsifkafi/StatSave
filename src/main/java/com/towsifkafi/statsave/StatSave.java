@@ -71,8 +71,16 @@ public final class StatSave extends JavaPlugin implements Listener {
             }
         }
 
+        if(config.getBoolean("placeholderapi.enabled")) {
+            if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null) {
+                logger.warning("Placeholder saving is enabled but PlaceholderAPI is not installed.");
+            }
+        }
+
         dataUtil = new DataUtil(this);
         playerUtil = new PlayerUtil(this);
+        
+        playerUtil.loadEncoders();
     }
 
     @Override

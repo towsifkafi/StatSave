@@ -45,6 +45,13 @@ achievements-options:
 stats:
   strip-zero-values: true
 
+# Save custom placeholder data with PlaceholderAPI support. Set to false to disable.
+# add placeholders below in the placeholders section.
+placeholderapi:
+  enabled: false
+  placeholders:
+    - "vault_eco_balance"
+
 
 # Only if you want to reset the tables
 # It will just delete them. They will be created if they don't exist anyway

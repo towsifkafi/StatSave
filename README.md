@@ -1,6 +1,6 @@
 # StatSave
 
-StatSave is a Spigot plugin that allows you to save player statistics to a MySQL or MongoDB database. useful for serving player data to a website or Discord bot. It can also be used for other purposes, such as tracking player progress or creating leaderboards.
+StatSave is a Spigot plugin that allows you to save player statistics to a MySQL or MongoDB database. useful for serving player data to a website or Discord bot. It can also be used for other purposes, such as tracking player progress or creating leaderboards. Also has support for for saving PlaceholderAPI data.
 <br>
 This is an **EXPERIMENTAL** plugin. 
 > **✨ Folia Supported**
@@ -36,6 +36,12 @@ mongodb:
   database: statsave
   collection: player_data
 
+# Save custom placeholder data with PlaceholderAPI support. Set to false to disable.
+placeholderapi:
+  enabled: false
+  placeholders:
+    - "vault_eco_balance"
+
 # rest of the config
 ```
 ## Usage
@@ -44,7 +50,7 @@ Once the plugin is installed and configured, it will automatically save player s
 - **/statsave** - `statsave.admin`
   - **/statsave reload** - Reloads the plugin and reconnects to the database.
   - **/statsave save** - Saves player stats of all active players.
-  - **/statsave save offline** - Saves player stats of offline players. (*Unstable*) (**Doesn't work on Folia**)
+  - **/statsave save offline** - Saves player stats of offline players. (*Unstable*) (*PlaceholderAPI Errors may occur*) (**Doesn't work on Folia**)
 
 ## Contributing
 Contributions are welcome! Please feel free to submit pull requests or issues.

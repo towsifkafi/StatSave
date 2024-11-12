@@ -22,7 +22,7 @@ public class PlayerUtil {
 
     private Map<String, Function<Player, String>> tables = new HashMap<>();
 
-    private List<String> jsonTables = List.of("achievements", "xp", "stats", "player_state", "player_effects");
+    private List<String> jsonTables = List.of("achievements", "xp", "stats", "player_state", "player_effects", "placeholders");
 
     public PlayerUtil(StatSave plugin) {
         this.plugin = plugin;
@@ -48,6 +48,7 @@ public class PlayerUtil {
         if(plugin.getConfig().getBoolean("save-data.stats")) tables.put("stats", plugin.dataUtil::encodeStatsToJSON);
         if(plugin.getConfig().getBoolean("save-data.player_state")) tables.put("player_state", plugin.dataUtil::encodePlayerStats);
         if(plugin.getConfig().getBoolean("save-data.player_effects")) tables.put("player_effects", plugin.dataUtil::encodeEffectsToJSON);
+        if(plugin.getConfig().getBoolean("placeholderapi.enabled") && plugin.getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) tables.put("placeholders", plugin.dataUtil::encodePlaceholdersToJSON);
     }
 
     private void saveDataMySQL(Player player) {
@@ -87,11 +88,18 @@ public class PlayerUtil {
         obj.put("uuid", player.getUniqueId().toString());
         obj.put("username", player.getName());
 
+
         for (Map.Entry<String, Function<Player, String>> entry: tables.entrySet()) {
             String table = entry.getKey();
 
             try {
                 String data = entry.getValue().apply(player);
+
+                // if(plugin.getConfig().getBoolean("debug")) {
+                //     plugin.logger.info("Saving data for " + player.getName() + " to " + table);
+                //     plugin.logger.info("Data: " + data);
+                // }
+
                 if (data == null) {
                     return;
                 }
@@ -108,8 +116,13 @@ public class PlayerUtil {
 
         Document found = collection.find(eq("uuid", player.getUniqueId().toString())).first();
         if (found != null) {
+            if(plugin.getConfig().getBoolean("debug")) plugin.logger.info("Updating data for " + player.getName());
+            
+            //collection.replaceOne(found, obj);
             collection.updateOne(found, new Document("$set", obj));
+
         } else {
+            if(plugin.getConfig().getBoolean("debug")) plugin.logger.info("Inserting new data for " + player.getName());
             collection.insertOne(obj);
         }
 
