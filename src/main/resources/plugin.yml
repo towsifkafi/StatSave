@@ -1,7 +1,6 @@
 name: StatSave
 version: '${project.version}'
 main: com.towsifkafi.statsave.StatSave
-api-version: '1.20'
 folia-supported: true
 softdepend: [PlaceholderAPI]
 libraries:
