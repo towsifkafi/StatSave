@@ -91,7 +91,6 @@ public final class StatSave extends JavaPlugin implements Listener {
 
     private void loadConfig() {
         saveDefaultConfig();
-        saveConfig();
         config = getConfig();
     }
 
