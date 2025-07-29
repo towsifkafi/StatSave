@@ -5,24 +5,27 @@ import org.bukkit.entity.Player;
 
 import static com.mongodb.client.model.Filters.eq;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonParser;
 import com.mongodb.client.MongoCollection;
 import com.towsifkafi.statsave.StatSave;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.logging.Level;
 
 public class PlayerUtil {
     
     private StatSave plugin;
 
     private Map<String, Function<Player, String>> tables = new HashMap<>();
-
-    private List<String> jsonTables = List.of("achievements", "xp", "stats", "player_state", "player_effects", "placeholders");
 
     public PlayerUtil(StatSave plugin) {
         this.plugin = plugin;
@@ -53,32 +56,83 @@ public class PlayerUtil {
 
     private void saveDataMySQL(Player player) {
 
+        String sqlType = plugin.getStorageMethod();
+
+        Map<String, String> queries = new HashMap<>();
+        Map<String, String> datas = new HashMap<>();
+
+        plugin.logger.debug("Preparing data for " + player.getName() + " to be saved...");
         for (Map.Entry<String, Function<Player, String>> entry: tables.entrySet()) {
             String table = entry.getKey();
 
-            String query = String.format(
+            String query;
+            if (plugin.pool.isSQLite()) {
+                query = String.format("INSERT OR REPLACE INTO %s (player_uuid, username, data) VALUES (?, ?, ?)", 
+                plugin.config.getString("table-prefix")+table);
+            } else {
+                query = String.format(
                     "INSERT INTO %s (player_uuid, username, data) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data = ?",
-                    table);
-            try (Connection conn = plugin.pool.getConnection();
-                PreparedStatement statement = conn.prepareStatement(query)) {
+                    plugin.config.getString("table-prefix")+table);
+            }
 
-                String data = entry.getValue().apply(player);
-                if (data == null) {
-                    return;
-                }
-
-                statement.setString(1, player.getUniqueId().toString());
-                statement.setString(2, player.getName());
-                statement.setString(3, data);
-                statement.setString(4, data);
-                statement.executeUpdate();
-            } catch (SQLException e) {
-                throw new RuntimeException("SQL error while saving data to " + table, e);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            String data = entry.getValue().apply(player);
+            if (data != null) {
+                queries.put(table, query);
+                datas.put(table, data);
             }
 
         }
+
+        plugin.logger.debug("Prepared statement queries for " + player.getName());
+        plugin.getScheduler().runTaskAsynchronously(() -> {
+            long startTime = System.currentTimeMillis();
+            Connection conn = null;
+            try {
+                conn = plugin.pool.getConnection();
+                conn.setAutoCommit(false);
+
+                for (Map.Entry<String, String> entry: queries.entrySet()) {
+                    String query = entry.getValue();
+                    String data = datas.get(entry.getKey());
+                    
+                    try (PreparedStatement statement = conn.prepareStatement(query)) {
+                        statement.setString(1, player.getUniqueId().toString());
+                        statement.setString(2, player.getName());
+                        statement.setString(3, data);
+                        if (!plugin.pool.isSQLite()) statement.setString(4, data);
+
+                        statement.addBatch();
+                        int[] results = statement.executeBatch();
+                        plugin.logger.debug("["+player.getName()+"]"+" --> [" + entry.getKey() + "]: " + Arrays.stream(results).sum());
+                    }
+                }
+                conn.commit();
+                long endTime = System.currentTimeMillis();
+                plugin.logger.debug(String.format("Saved data for %s in %dms", player.getName(), (endTime - startTime)));
+            } catch (SQLException e) {
+                try {
+                    if (conn != null) {
+                        conn.rollback();
+                    }
+                } catch (SQLException rollbackEx) {
+                    plugin.getLogger().severe("Failed to rollback transaction: " + rollbackEx.getMessage());
+                }
+                throw new RuntimeException("SQL error while saving data: " + e);
+                
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            } finally {
+                if (conn != null) {
+                    try {
+                        plugin.logger.debug("Closing connection for " + player.getName());
+                        conn.setAutoCommit(true);
+                        conn.close();
+                    } catch (SQLException e) {
+                        throw new RuntimeException("Error closing connection: " + e);
+                    }
+                }
+            }
+        });
         
     }
     private void saveDataMongoDB(Player player) {
@@ -91,52 +145,113 @@ public class PlayerUtil {
 
         for (Map.Entry<String, Function<Player, String>> entry: tables.entrySet()) {
             String table = entry.getKey();
-
             try {
                 String data = entry.getValue().apply(player);
-
-                // if(plugin.getConfig().getBoolean("debug")) {
-                //     plugin.logger.info("Saving data for " + player.getName() + " to " + table);
-                //     plugin.logger.info("Data: " + data);
-                // }
-
                 if (data == null) {
                     return;
                 }
-    
-                if(jsonTables.contains(table)) {
+                if(StatSave.jsonTables.contains(table)) {
                     obj.put(table, Document.parse(data));
                 } else obj.put(table, data);
-    
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-
         }
 
-        Document found = collection.find(eq("uuid", player.getUniqueId().toString())).first();
-        if (found != null) {
-            if(plugin.getConfig().getBoolean("debug")) plugin.logger.info("Updating data for " + player.getName());
-            
-            //collection.replaceOne(found, obj);
-            collection.updateOne(found, new Document("$set", obj));
+        plugin.getScheduler().runTaskAsynchronously(() -> {
+            long startTime = System.currentTimeMillis();
+            Document found = collection.find(eq("uuid", player.getUniqueId().toString())).first();
+            if (found != null) {
+                //collection.replaceOne(found, obj);
+                plugin.logger.debug("Updating data for " + player.getName());
+                collection.updateOne(found, new Document("$set", obj));
 
-        } else {
-            if(plugin.getConfig().getBoolean("debug")) plugin.logger.info("Inserting new data for " + player.getName());
-            collection.insertOne(obj);
-        }
+            } else {
+                plugin.logger.debug("Inserting new data for " + player.getName());
+                collection.insertOne(obj);
+            }
+            long endTime = System.currentTimeMillis();
+            plugin.logger.debug(String.format("Saved data for %s in %dms", player.getName(), (endTime - startTime)));
+        });
 
     }
 
     public void saveData(Player player) {
-        long startTime = System.currentTimeMillis();
-        if(plugin.getConfig().getString("storage-method").equalsIgnoreCase("mysql")) {
+        //long startTime = System.currentTimeMillis();
+        if(plugin.isUsingSQL()) {
             saveDataMySQL(player);
-        } else if(plugin.getConfig().getString("storage-method").equalsIgnoreCase("mongodb")) {
+        } else if(plugin.getStorageMethod().equalsIgnoreCase("mongodb")) {
             saveDataMongoDB(player);
         }
+        //long endTime = System.currentTimeMillis();
+        //plugin.logger.debug(String.format("Saved data for %s in %dms", player.getName(), (endTime - startTime)));
+    }
+
+    public Map<String, Object> getData(String playerName) {
+        long startTime = System.currentTimeMillis();
+        Map<String, Object> data;
+
+        if (plugin.isUsingSQL()) {
+            data = getDataMySQL(playerName);
+        } else if (plugin.getStorageMethod().equalsIgnoreCase("mongodb")) {
+            data = getDataMongoDB(playerName);
+        } else {
+            data = new HashMap<>();
+            plugin.logger.log(Level.WARNING, "Invalid storage method configured. No data retrieved for " + playerName);
+        }
+
         long endTime = System.currentTimeMillis();
-        if(plugin.getConfig().getBoolean("debug")) plugin.logger.info(String.format("Saved data for %s in %dms", player.getName(), (endTime - startTime)));
+        plugin.logger.debug(String.format("Retrieved data for %s in %dms", playerName, (endTime - startTime)));
+        return data;
+    }
+
+    private Map<String, Object> getDataMySQL(String playerName) {
+        Map<String, Object> dataMap = new HashMap<>();
+
+        for (String table : tables.keySet()) {
+            String query = String.format("SELECT data FROM %s WHERE username = ?", 
+                plugin.config.getString("table-prefix")+table);
+            try (Connection conn = plugin.pool.getConnection();
+                PreparedStatement statement = conn.prepareStatement(query)) {
+                statement.setString(1, playerName);
+                ResultSet result = statement.executeQuery();
+                
+                if (result.next()) {
+                    String data = result.getString("data");
+                    if (data != null) {
+                        if(table.equalsIgnoreCase("inventory") || table.equalsIgnoreCase("enderchest")  || table.equalsIgnoreCase("armor")) {
+                            dataMap.put(table, data);
+                        } else {
+                            dataMap.put(table, JsonParser.parseString(data));
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.logger.log(Level.SEVERE, "SQL error while retrieving data from " + table + " for " + playerName, e);
+                e.printStackTrace();
+            }
+        }
+        return dataMap;
+    }
+
+    private Map<String, Object> getDataMongoDB(String playerName) {
+        Map<String, Object> dataMap = new HashMap<>();
+        MongoCollection<Document> collection = plugin.mongoCollection;
+
+        Document found = collection.find(eq("username", playerName)).first();
+        if (found != null) {
+            for (String table : tables.keySet()) {
+                Object data = found.get(table);
+                if (data != null) {
+                    if (StatSave.jsonTables.contains(table) && data instanceof Document) {
+                        dataMap.put(table, data);
+                    } else {
+                        dataMap.put(table, data);
+                    }
+                }
+            }
+        }
+        return dataMap;
     }
 
 }
