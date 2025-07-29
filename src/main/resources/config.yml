@@ -4,8 +4,8 @@
 # If you want to see debug messages, set this to true
 debug: true
 
-# Method to save data. Set to 'MySQL' or 'MongoDB'
-storage-method: MySQL
+# Method to save data. Set to 'MySQL', 'PostgreSQL', 'SQLite' or 'MongoDB'
+storage-method: SQLite
 
 # MySQL Configuration
 mysql:
@@ -17,11 +17,30 @@ mysql:
   username: user
   password: pass
 
+# SQLite Configuration
+sqlite:
+  driver: org.sqlite.SQLiteDataSource
+  file: database.db
+
+# PostgreSQL Configuration
+postgresql:
+  driver: org.postgresql.ds.PGSimpleDataSource
+  host: 127.0.0.1
+  port: 3306
+  database: database
+  username: user
+  password: pass
+
 # MongoDB Configuration
 mongodb:
   connectionURI: mongodb://localhost:27017
   database: statsave
   collection: player_data
+
+# Prefix to use for table names.
+# WARNING: By default, there is no table prefix. Changing this will create new tables with the prefix,
+# The old tables will not be cleaned.
+table-prefix: ""
 
 # Configuration for saving data. Set to false to disable saving.
 save-data:
@@ -57,4 +76,10 @@ placeholderapi:
 # It will just delete them. They will be created if they don't exist anyway
 # If you want to recreate the tables, set this to true. Make sure to set it to false again
 recreatetables: false
+
+# Configuration for the Web API
+# If you want to enable the web api, set this to true.
+web-api:
+  enabled: true
+  port: 7070
 

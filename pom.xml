@@ -12,9 +12,72 @@
     <name>StatSave</name>
 
     <properties>
-        <java.version>1.8</java.version>
+        <java.version>11</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/towsifkafi/StatSave</url>
+        </repository>
+    </distributionManagement>
+
+    <build>
+        <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.10.1</version>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <target>${java.version}</target>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>3.6.0</version>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>shade</goal>
+                            </goals>
+                            <configuration>
+                                <artifactSet>
+                                    <includes>
+                                        <include>com.github.Anon8281:UniversalScheduler</include>
+                                        <include>com.zaxxer:HikariCP</include>
+                                    </includes>
+                                </artifactSet>
+                                <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+                                <finalName>${project.name}-${project.version}</finalName>
+                                <minimizeJar>true</minimizeJar>
+                                <createDependencyReducedPom>false</createDependencyReducedPom>
+                                <relocations>
+                                    <relocation>
+                                        <pattern>com.zaxxer</pattern>
+                                        <shadedPattern>com.towsifkafi.zaxxer</shadedPattern>
+                                    </relocation>
+                                    <relocation>
+                                        <pattern>com.github.Anon8281.universalScheduler</pattern>
+                                        <shadedPattern>com.towsifkafi.universalScheduler</shadedPattern>
+                                    </relocation>
+                                </relocations>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+            <resources>
+                <resource>
+                    <directory>src/main/resources</directory>
+                    <filtering>true</filtering>
+                </resource>
+            </resources>
+    </build>
 
     <repositories>
         <repository>
@@ -28,6 +91,10 @@
         <repository>
             <id>placeholderapi</id>
             <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
+        </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
         </repository>
     </repositories>
 
@@ -52,124 +119,28 @@
             <scope>compile</scope>
         </dependency>
         <dependency>
+            <groupId>com.github.Anon8281</groupId>
+            <artifactId>UniversalScheduler</artifactId>
+            <version>0.1.7</version> 
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
             <version>5.1.0</version>
-            <scope>${mongodb.scope}</scope>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.49.1.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.3</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
-
-    <profiles>
-        <profile>
-            <id>provided</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <properties>
-                <mongodb.scope>provided</mongodb.scope>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <version>3.8.1</version>
-                        <configuration>
-                            <source>${java.version}</source>
-                            <target>${java.version}</target>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-shade-plugin</artifactId>
-                        <version>3.6.0</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>shade</goal>
-                                </goals>
-                                <configuration>
-                                    <outputDirectory>${project.build.outputDirectory}</outputDirectory>
-                                    <finalName>${project.artifactId}-${project.version}</finalName>
-                                    <minimizeJar>true</minimizeJar>
-                                    <createDependencyReducedPom>false</createDependencyReducedPom>
-                                    <relocations>
-                                        <relocation>
-                                            <pattern>com.zaxxer</pattern>
-                                            <shadedPattern>com.towsifkafi.zaxxer</shadedPattern>
-                                        </relocation>
-                                    </relocations>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-                <resources>
-                    <resource>
-                        <directory>src/main/resources</directory>
-                        <filtering>true</filtering>
-                    </resource>
-                </resources>
-            </build>
-        </profile>
-        <profile>
-            <id>compile</id>
-            <properties>
-                <mongodb.scope>compile</mongodb.scope>
-            </properties>
-            <build>
-                <finalName>${project.artifactId}-${project.version}-WITH-DEPS</finalName>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <version>3.8.1</version>
-                        <configuration>
-                            <source>${java.version}</source>
-                            <target>${java.version}</target>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-shade-plugin</artifactId>
-                        <version>3.6.0</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>shade</goal>
-                                </goals>
-                                <configuration>
-
-                                    <createDependencyReducedPom>false</createDependencyReducedPom>
-                                    <relocations>
-                                        <relocation>
-                                            <pattern>com.zaxxer</pattern>
-                                            <shadedPattern>com.towsifkafi.zaxxer</shadedPattern>
-                                        </relocation>
-                                        <relocation>
-                                            <pattern>com.mongodb</pattern>
-                                            <shadedPattern>com.towsifkafi.mongodb</shadedPattern>
-                                        </relocation>
-                                        <relocation>
-                                            <pattern>org.bson</pattern>
-                                            <shadedPattern>com.towsifkafi.mongodb.bson</shadedPattern>
-                                        </relocation>
-                                    </relocations>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-                <resources>
-                    <resource>
-                        <directory>src/main/resources</directory>
-                        <filtering>true</filtering>
-                    </resource>
-                </resources>
-            </build>
-        </profile>
-    </profiles>
-
 </project>

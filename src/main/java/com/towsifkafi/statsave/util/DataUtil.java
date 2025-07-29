@@ -203,11 +203,33 @@ public class DataUtil {
             if(parsedPlaceholder == placeholder) {
                 placeholders.put(p, "");
             } else {
-                placeholders.put(p, parsedPlaceholder);
+                placeholders.put(p, parsePlaceholderText(parsedPlaceholder));
             }
         }
 
         String jsonPlaceholders = new Gson().toJson(placeholders);
         return jsonPlaceholders;
+    }
+
+    public Object parsePlaceholderText(String input) {
+        if (input == null) {
+            return null;
+        }
+        input = input.trim();
+        if (input.equalsIgnoreCase("true") || input.equalsIgnoreCase("false")) {
+            return Boolean.parseBoolean(input);
+        }
+        try {
+            if (input.matches("^-?\\d+$")) {
+                return Integer.parseInt(input);
+            }
+            
+            if (input.matches("^-?\\d*\\.\\d+$")) {
+                return Float.parseFloat(input);
+            }
+        } catch (NumberFormatException e) {
+            // If number parsing fails, return the original string
+        }
+        return input;
     }
 }
