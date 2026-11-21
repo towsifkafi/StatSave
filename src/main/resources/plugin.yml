@@ -3,7 +3,7 @@ version: '${project.version}'
 main: com.towsifkafi.statsave.StatSave
 api-version: '1.13'
 folia-supported: true
-softdepend: [PlaceholderAPI]
+softdepend: [PlaceholderAPI, NBTAPI]
 libraries:
  - org.mongodb:mongodb-driver-sync:5.1.0
  - org.xerial:sqlite-jdbc:3.49.1.0

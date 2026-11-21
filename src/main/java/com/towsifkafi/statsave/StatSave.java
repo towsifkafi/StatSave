@@ -25,12 +25,13 @@ import com.towsifkafi.statsave.util.Logger;
 import com.towsifkafi.statsave.util.PlayerUtil;
 
 import java.io.File;
-import java.sql.PreparedStatement;
+import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.logging.Level;
 
-public final class StatSave extends JavaPlugin implements Listener {
+public class StatSave extends JavaPlugin implements Listener {
 
     public Logger logger;
     public TaskScheduler scheduler;
@@ -58,7 +59,7 @@ public final class StatSave extends JavaPlugin implements Listener {
         "placeholders"
     );
 
-    public String[] sqlBased = {"mysql", "sqlite", "postgresql"};
+    public final String[] sqlBased = {"mysql", "sqlite", "postgresql"};
 
     public MongoDatabase mongoDatabase;
     public MongoCollection<Document> mongoCollection;
@@ -70,18 +71,23 @@ public final class StatSave extends JavaPlugin implements Listener {
 
         loadConfig();
 
-        String start = new StringBuilder().append("\n")
-        .append("")
-        .toString();
-
-        
-        getCommand("statsave").setExecutor(new SaveCommand(this));
+        SaveCommand saveCommand = new SaveCommand(this);
+        if (getCommand("statsave") != null) {
+            getCommand("statsave").setExecutor(saveCommand);
+            getCommand("statsave").setTabCompleter(saveCommand);
+        }
 
         loadDatabase();
         
-        if(config.getBoolean("placeholderapi.enabled")) {
+        if (config.getBoolean("placeholderapi.enabled")) {
             if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null) {
                 logger.log(Level.WARNING, "Placeholder saving is enabled but PlaceholderAPI is not installed.");
+            }
+        }
+
+        if ("SNBT".equalsIgnoreCase(config.getString("inventory-format"))) {
+            if (Bukkit.getPluginManager().getPlugin("NBTAPI") == null) {
+                logger.log(Level.WARNING, "inventory-format is set to SNBT but the NBTAPI plugin is not installed. Skipping inventory, enderchest, and armor saving.");
             }
         }
         
@@ -105,7 +111,19 @@ public final class StatSave extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
-        pool.closeConnection();
+        if (pool != null) {
+            pool.closeConnection();
+            pool = null;
+        }
+        if (mongoLoader != null) {
+            mongoLoader.close();
+            mongoLoader = null;
+            mongoDatabase = null;
+            mongoCollection = null;
+        }
+        if (addonLoader != null) {
+            addonLoader.unloadAddons();
+        }
     }
 
     public TaskScheduler getScheduler() {
@@ -120,60 +138,81 @@ public final class StatSave extends JavaPlugin implements Listener {
     public void loadDatabase() {
         String storageMethod = getStorageMethod();
 
-        mongoLoader = new MongoDBLoader(this);
-        pool = new HikariPool(this);
-
-        if(storageMethod.equalsIgnoreCase("mongodb")) {
+        if (storageMethod.equalsIgnoreCase("mongodb")) {
+            if (mongoLoader == null) {
+                mongoLoader = new MongoDBLoader(this);
+            }
             loadMongo();
-        } else if(isUsingSQL()) {
+        } else if (isUsingSQL()) {
+            pool = new HikariPool(this);
             if (config.getBoolean("recreatetables")) {
                 recreateTables();
             }
 
+            String prefix = getConfig().getString("table-prefix", "");
             for (String table : TABLES) {
-                String dataType = jsonTables.contains(table) ? "JSON" : "LONGTEXT";
+                String dataType;
+                if (jsonTables.contains(table)) {
+                    dataType = pool.isSQLite() ? "TEXT" : "JSON";
+                } else {
+                    dataType = pool.isMySQL() ? "LONGTEXT" : "TEXT";
+                }
                 pool.createTable(
-                    getConfig().getString("table-prefix")+table, 
-                    "player_uuid VARCHAR(36) PRIMARY KEY, username VARCHAR(16), data "+dataType
+                    prefix + table, 
+                    "player_uuid VARCHAR(36) PRIMARY KEY, username VARCHAR(16), data " + dataType
                 );
             }
         }
     }
 
     public boolean isUsingSQL() {
-        for(String s : sqlBased) { 
-            if(getStorageMethod().equalsIgnoreCase(s)) {
+        String current = getStorageMethod();
+        if (current == null) {
+            return false;
+        }
+        for (String s : sqlBased) { 
+            if (current.equalsIgnoreCase(s)) {
                 return true;
             }
         }
         return false;
     }
+
     public String getStorageMethod() {
-        return getConfig().getString("storage-method");
+        String method = getConfig().getString("storage-method");
+        return method != null ? method : "";
+    }
+
+    public AddonLoader getAddonLoader() {
+        return addonLoader;
     }
 
     public void reloadAddons() {
-        // Unload existing addons
-        addonLoader.unloadAddons();
-
-        // Reload addons
-        addonLoader.loadAddons();
-        getLogger().info("Reloaded " + addonLoader.getLoadedAddons().size() + " addons.");
+        if (addonLoader != null) {
+            addonLoader.unloadAddons();
+            addonLoader.loadAddons();
+            getLogger().info("Reloaded " + addonLoader.getLoadedAddons().size() + " addons.");
+        }
     }
 
     public void reload() {
         loadConfig();
         playerUtil.loadEncoders();
 
-        if(mongoDatabase != null) mongoLoader.close();
+        // Safely close active connections before re-initializing
+        if (pool != null) {
+            pool.closeConnection();
+            pool = null;
+        }
+        if (mongoLoader != null) {
+            mongoLoader.close();
+            mongoLoader = null;
+            mongoDatabase = null;
+            mongoCollection = null;
+        }
 
         scheduler.runTaskAsynchronously(() -> {
-            String storageMethod = getStorageMethod();
-            if(storageMethod.equalsIgnoreCase("mongodb")) {
-                loadMongo();
-            } else if(isUsingSQL()) {
-                pool = new HikariPool(this);
-            }
+            loadDatabase();
             reloadAddons();
         });
     }
@@ -186,12 +225,28 @@ public final class StatSave extends JavaPlugin implements Listener {
 
     private void recreateTables() {
         logger.log(Level.WARNING, "Deleting and Rebuilding tables...");
-        try (PreparedStatement statement = pool.getConnection().prepareStatement(
-                "DROP TABLE IF EXISTS " + String.join(", ", TABLES))
-            ) {
-            statement.execute();
+        if (pool == null) {
+            return;
+        }
+        Connection conn = pool.getConnection();
+        if (conn == null) {
+            logger.log(Level.WARNING, "Failed to drop tables: database connection is null");
+            return;
+        }
+        String prefix = getConfig().getString("table-prefix", "");
+        try (Statement statement = conn.createStatement()) {
+            for (String table : TABLES) {
+                statement.execute("DROP TABLE IF EXISTS " + prefix + table);
+            }
+            logger.log(Level.INFO, "Tables successfully dropped.");
         } catch (SQLException e) {
-            logger.log(Level.WARNING, "Failed to drop tables: "+ e.toString());
+            logger.log(Level.WARNING, "Failed to drop tables: " + e.getMessage());
+        } finally {
+            try {
+                conn.close();
+            } catch (SQLException e) {
+                logger.log(Level.WARNING, "Error closing connection: " + e.getMessage());
+            }
         }
     }
 

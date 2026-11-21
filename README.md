@@ -17,8 +17,13 @@ This is an **EXPERIMENTAL** plugin.
 The plugin can be configured by editing the `config.yml` file. 
 You can choose to save your data in either MySQL or MongoDB by modifying the `storage-method` value. Here's an example configuration:
 ```yml
-# Method to save data. Set to 'MySQL' or 'MongoDB'
-storage-method: MySQL
+# Method to save data: 'MySQL', 'PostgreSQL', 'SQLite', or 'MongoDB'
+storage-method: SQLite
+
+# Format for saving inventory, enderchest, and armor:
+# - SNBT (Recommended): Stringified NBT ([{Slot:0b,id:"minecraft:diamond",Count:1b}])
+# - BASE64: Legacy Java BukkitObjectOutputStream Base64 format
+inventory-format: SNBT
 
 # MySQL Configuration
 mysql:

@@ -35,6 +35,7 @@ public class AddonLoader {
         for (File file : files) {
             URLClassLoader classLoader = null;
             JarFile jarFile = null;
+            boolean hasAddons = false;
             try {
                 URL jarUrl = file.toURI().toURL();
                 classLoader = new URLClassLoader(new URL[]{jarUrl}, plugin.getClass().getClassLoader());
@@ -52,18 +53,31 @@ public class AddonLoader {
                                 addon.onEnable(plugin);
                                 String[] createTableSQL = addon.getTableSchema();
 
-                                for(String sql : createTableSQL) {
-                                    try (Connection conn = plugin.pool.getConnection();
-                                        Statement stmt = conn.createStatement()) {
-                                        stmt.execute(sql);
-                                        plugin.getLogger().info("Created table for addon: " + clazz.getSimpleName());
-                                    } catch (SQLException e) {
-                                        plugin.getLogger().warning("Failed to create table for " + clazz.getSimpleName() + ": " + e.getMessage());
+                                if (createTableSQL != null && plugin.isUsingSQL() && plugin.pool != null) {
+                                    for (String sql : createTableSQL) {
+                                        if (sql == null || sql.trim().isEmpty()) continue;
+                                        Connection conn = plugin.pool.getConnection();
+                                        if (conn == null) {
+                                            plugin.getLogger().warning("Could not acquire connection to create table for addon: " + clazz.getSimpleName());
+                                            continue;
+                                        }
+                                        try (Statement stmt = conn.createStatement()) {
+                                            stmt.execute(sql);
+                                            plugin.getLogger().info("Created table for addon: " + clazz.getSimpleName());
+                                        } catch (SQLException e) {
+                                            plugin.getLogger().warning("Failed to create table for " + clazz.getSimpleName() + ": " + e.getMessage());
+                                        } finally {
+                                            try {
+                                                conn.close();
+                                            } catch (SQLException e) {
+                                                plugin.getLogger().warning("Error closing connection: " + e.getMessage());
+                                            }
+                                        }
                                     }
                                 }
                                 
                                 loadedAddons.add(addon);
-                                classLoaders.add(classLoader);
+                                hasAddons = true;
                                 plugin.getLogger().info("Loaded addon: " + clazz.getSimpleName());
                             }
                         } catch (Exception e) {
@@ -79,6 +93,16 @@ public class AddonLoader {
                         jarFile.close();
                     } catch (Exception e) {
                         plugin.getLogger().warning("Failed to close JAR file " + file.getName() + ": " + e.getMessage());
+                    }
+                }
+                if (classLoader != null) {
+                    if (hasAddons) {
+                        classLoaders.add(classLoader);
+                    } else {
+                        try {
+                            classLoader.close();
+                        } catch (Exception ignored) {
+                        }
                     }
                 }
             }

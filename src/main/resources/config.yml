@@ -26,7 +26,7 @@ sqlite:
 postgresql:
   driver: org.postgresql.ds.PGSimpleDataSource
   host: 127.0.0.1
-  port: 3306
+  port: 5432
   database: database
   username: user
   password: pass
@@ -41,6 +41,14 @@ mongodb:
 # WARNING: By default, there is no table prefix. Changing this will create new tables with the prefix,
 # The old tables will not be cleaned.
 table-prefix: ""
+
+# Format for saving player inventory, enderchest, and armor data.
+# Options:
+#   - SNBT (Recommended): Human-readable Stringified NBT ([{Slot:0b,id:"minecraft:diamond",Count:1b}]),
+#     making player item data easily readable by websites, Discord bots.
+#     NOTE: Requires the 'NBTAPI' plugin to be installed on your server.
+#   - BASE64: Legacy Java BukkitObjectOutputStream Base64 binary format.
+inventory-format: SNBT
 
 # Configuration for saving data. Set to false to disable saving.
 save-data:
@@ -60,7 +68,7 @@ achievements-options:
   strip-recipes: true
   only-completed: true
 
-# 'strip-zero-values' will strip any stats that have a value of 0
+# 'strip-zero-values' will strip any statistics that have a value of 0
 stats:
   strip-zero-values: true
 
@@ -76,10 +84,4 @@ placeholderapi:
 # It will just delete them. They will be created if they don't exist anyway
 # If you want to recreate the tables, set this to true. Make sure to set it to false again
 recreatetables: false
-
-# Configuration for the Web API
-# If you want to enable the web api, set this to true.
-web-api:
-  enabled: true
-  port: 7070
 
